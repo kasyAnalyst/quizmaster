@@ -1,0 +1,500 @@
+<!-- take_quiz.html -->
+{% extends "base.html" %}
+
+{% block title %} Take Quiz {% endblock %}
+
+{% block content %}
+<div class="bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 min-h-screen p-4 sm:p-6 relative overflow-hidden">
+    <!-- Background decorative elements -->
+    <div class="absolute inset-0 overflow-hidden pointer-events-none">
+        <div class="absolute -top-40 -right-40 w-80 h-80 bg-gradient-to-br from-purple-400/20 to-pink-400/20 rounded-full blur-3xl animate-pulse"></div>
+        <div class="absolute -bottom-40 -left-40 w-96 h-96 bg-gradient-to-tr from-blue-400/20 to-indigo-400/20 rounded-full blur-3xl animate-pulse" style="animation-delay: 2s;"></div>
+    </div>
+
+    <!-- Timer and Stats Header -->
+    <div class="w-full max-w-4xl mx-auto mb-6 relative z-10 animate-fade-in">
+        <div class="bg-gradient-to-r from-purple-600 via-violet-600 to-pink-600 rounded-xl sm:rounded-2xl shadow-2xl p-4 sm:p-6 text-white relative overflow-hidden backdrop-blur-sm">
+            <!-- Animated overlay -->
+            <div class="absolute inset-0 bg-gradient-to-r from-white/10 via-transparent to-white/10 animate-shimmer"></div>
+            
+            <div class="relative z-10">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-4">
+                    <h1 class="text-xl sm:text-2xl lg:text-3xl font-bold animate-slide-up">{{ quiz.title }}</h1>
+                    <div class="timer bg-white/20 px-3 py-2 sm:px-4 sm:py-3 rounded-full text-xl sm:text-2xl font-bold backdrop-blur-sm border border-white/30 animate-bounce-in" id="timer">
+                        {{ quiz_duration|default(15) }}:00
+                    </div>
+                </div>
+                
+                <p class="text-base sm:text-lg text-center mb-4 animate-slide-up" style="animation-delay: 0.2s;">Category: <span class="font-semibold bg-white/20 px-3 py-1 rounded-full">{{ quiz.category }}</span></p>
+                
+                <!-- Stats Grid -->
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mb-4">
+                    <div class="bg-white/20 backdrop-blur-sm rounded-lg sm:rounded-xl p-3 sm:p-4 text-center border border-white/30 transform hover:scale-105 transition-all duration-300 animate-slide-up" style="animation-delay: 0.1s;">
+                        <div class="text-xl sm:text-2xl font-bold" id="current-question">1</div>
+                        <div class="text-xs sm:text-sm opacity-90">Current</div>
+                    </div>
+                    <div class="bg-white/20 backdrop-blur-sm rounded-lg sm:rounded-xl p-3 sm:p-4 text-center border border-white/30 transform hover:scale-105 transition-all duration-300 animate-slide-up" style="animation-delay: 0.2s;">
+                        <div class="text-xl sm:text-2xl font-bold" id="total-questions">{{ questions|length }}</div>
+                        <div class="text-xs sm:text-sm opacity-90">Total</div>
+                    </div>
+                    <div class="bg-white/20 backdrop-blur-sm rounded-lg sm:rounded-xl p-3 sm:p-4 text-center border border-white/30 transform hover:scale-105 transition-all duration-300 animate-slide-up" style="animation-delay: 0.3s;">
+                        <div class="text-xl sm:text-2xl font-bold text-emerald-200" id="answered-count">0</div>
+                        <div class="text-xs sm:text-sm opacity-90">Answered</div>
+                    </div>
+                    <div class="bg-white/20 backdrop-blur-sm rounded-lg sm:rounded-xl p-3 sm:p-4 text-center border border-white/30 transform hover:scale-105 transition-all duration-300 animate-slide-up" style="animation-delay: 0.4s;">
+                        <div class="text-xl sm:text-2xl font-bold text-cyan-200" id="time-used">0:00</div>
+                        <div class="text-xs sm:text-sm opacity-90">Time Used</div>
+                    </div>
+                </div>
+                
+                <!-- Progress Bar -->
+                <div class="w-full bg-white/20 rounded-full h-3 sm:h-4 mb-2 overflow-hidden backdrop-blur-sm border border-white/30 animate-slide-up" style="animation-delay: 0.5s;">
+                    <div class="bg-gradient-to-r from-emerald-400 to-cyan-400 h-full rounded-full transition-all duration-700 ease-out relative overflow-hidden" id="progress-fill" style="width: 0%">
+                        <div class="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shimmer"></div>
+                    </div>
+                </div>
+                <div class="text-center text-xs sm:text-sm opacity-90 animate-slide-up" style="animation-delay: 0.6s;">
+                    <span id="progress-text">0% Complete</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quiz Form -->
+    <div class="w-full max-w-4xl mx-auto relative z-10 animate-fade-in" style="animation-delay: 0.3s;">
+        <div class="bg-white/80 backdrop-blur-lg rounded-xl sm:rounded-2xl shadow-2xl p-6 sm:p-8 transition-all duration-300 hover:shadow-3xl border border-white/50">
+            <form method="POST" id="quiz-form" class="space-y-6">
+                <!-- Hidden timing fields -->
+                <input type="hidden" name="time_taken" id="time-taken-input">
+                <input type="hidden" name="start_time" id="start-time-input">
+                
+                {% for question in questions %}
+                    <div class="bg-gradient-to-br from-gray-50 to-white p-4 sm:p-6 rounded-xl sm:rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 question-block border border-gray-100 transform hover:-translate-y-1 animate-slide-in" data-question="{{ loop.index }}" style="animation-delay: {{ loop.index * 0.1 }}s;">
+                        <p class="text-lg sm:text-xl font-semibold text-gray-800 mb-6 leading-relaxed">
+                            <span class="inline-flex items-center justify-center w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-full text-sm sm:text-lg font-bold mr-3 shadow-lg">{{ loop.index }}</span>
+                            <strong>Question {{ loop.index }}: {{ question['question_text'] if quiz_source == 'api' else question.question_text }}</strong>
+                        </p>
+                        
+                        <div class="space-y-3 sm:space-y-4">
+                            <label class="flex items-center p-3 sm:p-4 bg-white rounded-lg sm:rounded-xl hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 transition-all duration-300 cursor-pointer border-2 border-transparent hover:border-blue-200 option-label group transform hover:translate-x-2">
+                                <input type="radio" name="answers_{{ loop.index }}" value="a" required class="mr-3 sm:mr-4 w-4 h-4 sm:w-5 sm:h-5 text-blue-600 focus:ring-blue-500 focus:ring-2" onchange="updateStats()">
+                                <span class="text-gray-700 text-sm sm:text-lg group-hover:text-blue-700 transition-colors">A: {{ question['option_a'] if quiz_source == 'api' else question.option_a }}</span>
+                            </label>
+                            <label class="flex items-center p-3 sm:p-4 bg-white rounded-lg sm:rounded-xl hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 transition-all duration-300 cursor-pointer border-2 border-transparent hover:border-blue-200 option-label group transform hover:translate-x-2">
+                                <input type="radio" name="answers_{{ loop.index }}" value="b" class="mr-3 sm:mr-4 w-4 h-4 sm:w-5 sm:h-5 text-blue-600 focus:ring-blue-500 focus:ring-2" onchange="updateStats()">
+                                <span class="text-gray-700 text-sm sm:text-lg group-hover:text-blue-700 transition-colors">B: {{ question['option_b'] if quiz_source == 'api' else question.option_b }}</span>
+                            </label>
+                            <label class="flex items-center p-3 sm:p-4 bg-white rounded-lg sm:rounded-xl hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 transition-all duration-300 cursor-pointer border-2 border-transparent hover:border-blue-200 option-label group transform hover:translate-x-2">
+                                <input type="radio" name="answers_{{ loop.index }}" value="c" class="mr-3 sm:mr-4 w-4 h-4 sm:w-5 sm:h-5 text-blue-600 focus:ring-blue-500 focus:ring-2" onchange="updateStats()">
+                                <span class="text-gray-700 text-sm sm:text-lg group-hover:text-blue-700 transition-colors">C: {{ question['option_c'] if quiz_source == 'api' else question.option_c }}</span>
+                            </label>
+                            <label class="flex items-center p-3 sm:p-4 bg-white rounded-lg sm:rounded-xl hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 transition-all duration-300 cursor-pointer border-2 border-transparent hover:border-blue-200 option-label group transform hover:translate-x-2">
+                                <input type="radio" name="answers_{{ loop.index }}" value="d" class="mr-3 sm:mr-4 w-4 h-4 sm:w-5 sm:h-5 text-blue-600 focus:ring-blue-500 focus:ring-2" onchange="updateStats()">
+                                <span class="text-gray-700 text-sm sm:text-lg group-hover:text-blue-700 transition-colors">D: {{ question['option_d'] if quiz_source == 'api' else question.option_d }}</span>
+                            </label>
+                        </div>
+                    </div>
+                {% endfor %}
+
+                <div class="text-center pt-6 animate-fade-in" style="animation-delay: 0.8s;">
+                    <button type="submit" onclick="submitQuiz()" class="group relative bg-gradient-to-r from-emerald-500 via-green-500 to-teal-600 text-white text-lg sm:text-xl py-3 px-6 sm:py-4 sm:px-8 rounded-full font-bold hover:from-emerald-600 hover:via-green-600 hover:to-teal-700 transition-all duration-300 transform hover:scale-105 shadow-xl hover:shadow-2xl overflow-hidden">
+                        <div class="absolute inset-0 bg-gradient-to-r from-white/20 via-transparent to-white/20 transform -skew-x-12 translate-x-[-200%] group-hover:translate-x-[200%] transition-transform duration-700"></div>
+                        <span class="relative z-10 flex items-center justify-center gap-2">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                            </svg>
+                            Submit Quiz
+                        </span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<style>
+/* Enhanced Animations */
+@keyframes fade-in {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slide-up {
+    from { opacity: 0; transform: translateY(30px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slide-in {
+    from { opacity: 0; transform: translateX(50px); }
+    to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes bounce-in {
+    0% { opacity: 0; transform: scale(0.3); }
+    50% { opacity: 1; transform: scale(1.05); }
+    70% { transform: scale(0.9); }
+    100% { opacity: 1; transform: scale(1); }
+}
+
+@keyframes shimmer {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+}
+
+.animate-fade-in { animation: fade-in 0.6s ease-out; }
+.animate-slide-up { animation: slide-up 0.5s ease-out; }
+.animate-slide-in { animation: slide-in 0.6s ease-out; }
+.animate-bounce-in { animation: bounce-in 0.4s ease-out; }
+.animate-shimmer { animation: shimmer 3s linear infinite; }
+
+/* Enhanced Timer Styles */
+.timer {
+    background: rgba(255, 255, 255, 0.2) !important;
+    transition: all 0.3s ease;
+}
+
+.timer.warning {
+    background: rgba(251, 191, 36, 0.9) !important;
+    animation: pulse 2s infinite;
+    box-shadow: 0 0 20px rgba(251, 191, 36, 0.5);
+}
+
+.timer.danger {
+    background: rgba(239, 68, 68, 0.9) !important;
+    animation: pulse 1s infinite, shake 0.5s ease-in-out infinite;
+    box-shadow: 0 0 25px rgba(239, 68, 68, 0.6);
+}
+
+@keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); }
+}
+
+@keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-3px); }
+    75% { transform: translateX(3px); }
+}
+
+/* Enhanced Option Selection */
+.option-label:has(input:checked) {
+    background: linear-gradient(135deg, #dbeafe, #e0e7ff) !important;
+    border-color: #3b82f6 !important;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1), 0 10px 20px rgba(59, 130, 246, 0.15) !important;
+    transform: translateX(8px) scale(1.02) !important;
+}
+
+.option-label:has(input:checked) span {
+    color: #1e40af !important;
+    font-weight: 600 !important;
+}
+
+/* Enhanced Current Question Indicator */
+.question-block.current {
+    border-left: 6px solid #3b82f6 !important;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1), 0 15px 30px rgba(0, 0, 0, 0.1) !important;
+    transform: translateY(-2px) !important;
+    background: linear-gradient(135deg, #f8fafc, #ffffff) !important;
+}
+
+/* Mobile Responsiveness Enhancements */
+@media (max-width: 640px) {
+    .question-block {
+        padding: 1rem !important;
+    }
+    
+    .option-label {
+        padding: 0.75rem !important;
+    }
+    
+    .timer {
+        font-size: 1.25rem !important;
+        padding: 0.5rem 1rem !important;
+    }
+    
+    .animate-slide-in {
+        animation-delay: 0s !important;
+    }
+}
+
+/* Loading State */
+.loading {
+    position: relative;
+    overflow: hidden;
+}
+
+.loading::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+    animation: loading 1.5s infinite;
+}
+
+@keyframes loading {
+    0% { left: -100%; }
+    100% { left: 100%; }
+}
+</style>
+
+<script>
+// Quiz timer and stats functionality with enhanced animations
+let totalTime = {{ quiz_duration|default(15) }} * 60; // Convert minutes to seconds
+let timeRemaining = totalTime;
+let startTime = new Date();
+let timerInterval;
+let totalQuestions = {{ questions|length }};
+
+// Initialize the quiz with enhanced animations
+document.addEventListener('DOMContentLoaded', function() {
+    // Set start time
+    document.getElementById('start-time-input').value = startTime.toISOString();
+    
+    // Start the timer
+    startTimer();
+    
+    // Update initial stats
+    updateStats();
+    
+    // Add enhanced change listeners to all radio buttons
+    document.querySelectorAll('input[type="radio"]').forEach(radio => {
+        radio.addEventListener('change', function() {
+            updateStats();
+            animateSelection(this);
+        });
+    });
+
+    // Stagger animation of question blocks
+    const questionBlocks = document.querySelectorAll('.question-block');
+    questionBlocks.forEach((block, index) => {
+        block.style.animationDelay = `${index * 0.1}s`;
+    });
+});
+
+// Enhanced selection animation
+function animateSelection(radio) {
+    const label = radio.closest('label');
+    const questionBlock = radio.closest('.question-block');
+    
+    // Remove previous selections in this question
+    questionBlock.querySelectorAll('label').forEach(l => {
+        l.style.transform = '';
+        l.style.transition = 'all 0.3s ease';
+    });
+    
+    // Animate the selected option
+    label.style.transform = 'translateX(8px) scale(1.02)';
+    
+    // Add ripple effect
+    const ripple = document.createElement('div');
+    ripple.style.cssText = `
+        position: absolute;
+        border-radius: 50%;
+        background: rgba(59, 130, 246, 0.3);
+        transform: scale(0);
+        animation: ripple 0.6s linear;
+        pointer-events: none;
+    `;
+    
+    const rect = label.getBoundingClientRect();
+    const size = Math.max(rect.width, rect.height);
+    ripple.style.width = ripple.style.height = size + 'px';
+    ripple.style.left = '0px';
+    ripple.style.top = '0px';
+    
+    label.style.position = 'relative';
+    label.appendChild(ripple);
+    
+    setTimeout(() => ripple.remove(), 600);
+}
+
+function startTimer() {
+    timerInterval = setInterval(function() {
+        timeRemaining--;
+        updateTimerDisplay();
+        updateTimeUsed();
+        
+        if (timeRemaining <= 0) {
+            clearInterval(timerInterval);
+            showTimeUpNotification();
+            submitQuiz();
+        }
+    }, 1000);
+}
+
+function updateTimerDisplay() {
+    const minutes = Math.floor(timeRemaining / 60);
+    const seconds = timeRemaining % 60;
+    const timerElement = document.getElementById('timer');
+    
+    timerElement.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+    
+    // Enhanced timer style based on remaining time
+    if (timeRemaining <= 60) {
+        timerElement.className = 'timer bg-white/20 px-3 py-2 sm:px-4 sm:py-3 rounded-full text-xl sm:text-2xl font-bold backdrop-blur-sm border border-white/30 danger';
+    } else if (timeRemaining <= 300) { // 5 minutes
+        timerElement.className = 'timer bg-white/20 px-3 py-2 sm:px-4 sm:py-3 rounded-full text-xl sm:text-2xl font-bold backdrop-blur-sm border border-white/30 warning';
+    } else {
+        timerElement.className = 'timer bg-white/20 px-3 py-2 sm:px-4 sm:py-3 rounded-full text-xl sm:text-2xl font-bold backdrop-blur-sm border border-white/30';
+    }
+}
+
+function updateTimeUsed() {
+    const elapsed = Math.floor((new Date() - startTime) / 1000);
+    const minutes = Math.floor(elapsed / 60);
+    const seconds = elapsed % 60;
+    document.getElementById('time-used').textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+}
+
+function updateStats() {
+    const answeredInputs = document.querySelectorAll('input[type="radio"]:checked');
+    const answeredCount = answeredInputs.length;
+    
+    // Enhanced answered count update with animation
+    const answeredElement = document.getElementById('answered-count');
+    if (parseInt(answeredElement.textContent) !== answeredCount) {
+        answeredElement.style.transform = 'scale(1.3)';
+        answeredElement.style.color = '#10b981';
+        setTimeout(() => {
+            answeredElement.style.transform = 'scale(1)';
+            answeredElement.style.color = '';
+        }, 300);
+    }
+    answeredElement.textContent = answeredCount;
+    
+    // Enhanced progress update
+    const progressPercentage = (answeredCount / totalQuestions) * 100;
+    const progressFill = document.getElementById('progress-fill');
+    const progressText = document.getElementById('progress-text');
+    
+    progressFill.style.width = progressPercentage + '%';
+    progressText.textContent = Math.round(progressPercentage) + '% Complete';
+    
+    // Update current question indicator
+    updateCurrentQuestion();
+}
+
+function updateCurrentQuestion() {
+    const questionBlocks = document.querySelectorAll('.question-block');
+    let currentQ = 1;
+    let foundUnanswered = false;
+    
+    // Remove all current indicators with smooth transition
+    questionBlocks.forEach(block => {
+        block.classList.remove('current');
+        block.style.transition = 'all 0.3s ease';
+    });
+    
+    questionBlocks.forEach((block, index) => {
+        const questionNum = index + 1;
+        const questionRadios = block.querySelectorAll('input[type="radio"]');
+        const isAnswered = Array.from(questionRadios).some(radio => radio.checked);
+        
+        if (!isAnswered && !foundUnanswered) {
+            currentQ = questionNum;
+            foundUnanswered = true;
+            block.classList.add('current');
+        }
+    });
+    
+    // If all answered, current is the last question
+    const totalAnswered = document.querySelectorAll('input[type="radio"]:checked').length;
+    if (totalAnswered === totalQuestions) {
+        currentQ = totalQuestions;
+        questionBlocks[totalQuestions - 1].classList.add('current');
+    }
+    
+    // Animate current question number update
+    const currentElement = document.getElementById('current-question');
+    if (parseInt(currentElement.textContent) !== currentQ) {
+        currentElement.style.transform = 'scale(1.2)';
+        setTimeout(() => {
+            currentElement.style.transform = 'scale(1)';
+        }, 200);
+    }
+    currentElement.textContent = currentQ;
+}
+
+function showTimeUpNotification() {
+    // Create a more elegant notification
+    const notification = document.createElement('div');
+    notification.innerHTML = `
+        <div class="fixed top-4 right-4 bg-red-500 text-white px-6 py-4 rounded-lg shadow-2xl z-50 animate-bounce-in">
+            <div class="flex items-center gap-3">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                <span class="font-semibold">⏰ Time is up! Submitting quiz automatically.</span>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(notification);
+    
+    setTimeout(() => {
+        if (notification.parentNode) {
+            notification.remove();
+        }
+    }, 3000);
+}
+
+function submitQuiz() {
+    clearInterval(timerInterval);
+    
+    // Calculate time taken
+    const timeTaken = Math.floor((new Date() - startTime) / 1000);
+    document.getElementById('time-taken-input').value = timeTaken;
+    
+    // Check if all questions are answered
+    const totalAnswered = document.querySelectorAll('input[type="radio"]:checked').length;
+    if (totalAnswered < totalQuestions) {
+        const unanswered = totalQuestions - totalAnswered;
+        if (!confirm(`⚠️ You have ${unanswered} unanswered question(s). Submit anyway?`)) {
+            // Restart timer if they choose not to submit
+            startTimer();
+            return false;
+        }
+    }
+    
+    // Enhanced loading state
+    const submitBtn = document.querySelector('button[type="submit"]');
+    submitBtn.innerHTML = `
+        <span class="relative z-10 flex items-center justify-center gap-2">
+            <svg class="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="m4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            ⏳ Submitting...
+        </span>
+    `;
+    submitBtn.disabled = true;
+    submitBtn.classList.add('loading');
+    
+    // Submit the form
+    document.getElementById('quiz-form').submit();
+}
+
+// Enhanced auto-scroll to current question
+setTimeout(() => {
+    const currentBlock = document.querySelector('.question-block.current');
+    if (currentBlock) {
+        currentBlock.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+}, 500);
+
+// Add ripple effect styles
+const rippleStyle = document.createElement('style');
+rippleStyle.textContent = `
+    @keyframes ripple {
+        to {
+            transform: scale(4);
+            opacity: 0;
+        }
+    }
+`;
+document.head.appendChild(rippleStyle);
+</script>
+{% endblock %}

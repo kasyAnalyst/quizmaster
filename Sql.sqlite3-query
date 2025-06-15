@@ -1,0 +1,31 @@
+-- database: ./instance/online_quizz.db
+
+SELECT * FROM questions;
+
+INSERT INTO quiz (title, category, created_by) VALUES
+('General Knowledge Quiz', 'General Knowledge', 2),  -- Created by admin1
+('Science & Tech Quiz', 'Science', 2),  -- Created by admin2
+('History Trivia', 'History', 2),  -- Created by admin1
+('Programming Basics', 'Technology', 2),  -- Created by admin3
+('Sports Challenge', 'Sports', 2);  -- Created by admin2
+INSERT INTO questions (question_text, option_a, option_b, option_c, option_d, correct_option, quiz_id) VALUES
+-- General Knowledge Quiz (Quiz ID: 1, Created by User ID 1)
+('Which planet is known as the Red Planet?', 'Earth', 'Mars', 'Jupiter', 'Venus', 'b', 1),  
+('What is the largest ocean on Earth?', 'Atlantic', 'Pacific', 'Indian', 'Arctic', 'b', 1),  
+
+-- Science & Tech Quiz (Quiz ID: 2, Created by User ID 2)
+('What is the chemical symbol for Gold?', 'Ag', 'Au', 'Pb', 'Fe', 'b', 2),  
+('Who invented the telephone?', 'Edison', 'Bell', 'Tesla', 'Newton', 'b', 2),  
+
+-- History Trivia (Quiz ID: 3, Created by User ID 1)
+('Who was the first President of the United States?', 'Lincoln', 'Washington', 'Jefferson', 'Roosevelt', 'b', 3),  
+('Which year did the Titanic sink?', '1910', '1912', '1915', '1920', 'b', 3),  
+
+-- Programming Basics (Quiz ID: 4, Created by User ID 3)
+('Which programming language is known as the language of the web?', 'Java', 'Python', 'JavaScript', 'C++', 'c', 4),  
+('What does CSS stand for?', 'Cascading Style Sheets', 'Computer Style Sheets', 'Creative Style System', 'None of the above', 'a', 4),  
+
+-- Sports Challenge (Quiz ID: 5, Created by User ID 2)
+('Which country won the FIFA World Cup in 2018?', 'Germany', 'Brazil', 'France', 'Argentina', 'c', 5),  
+('How many players are on a standard soccer team?', '9', '10', '11', '12', 'c', 5);  
+
