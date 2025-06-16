@@ -163,7 +163,7 @@ QuizMaster/
    touch .env
    
    # Add configuration variables
-   echo "SECRET_KEY=your-secret-key-here" >> .env
+   echo "SECRET_KEY=your-secret-key-here or python -c 'import secrets; print(secrets.token_hex(32))'" >> .env
    echo "DATABASE_URL=sqlite:///online_quiz.db" >> .env
    echo "FLASK_ENV=development" >> .env
    ```
