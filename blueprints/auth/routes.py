@@ -1,15 +1,14 @@
-from flask import Blueprint, render_template, redirect, url_for, flash, session, request, make_response
+from flask import Blueprint, render_template, redirect, url_for, flash, session, request, make_response, current_app
 from flask_login import login_user, logout_user, login_required, current_user
 from functools import wraps
 from urllib.parse import urlparse
-from app import db, bcrypt, mail
+# FIXED: Import db from models, not from app to avoid circular import
+from models.models import db, User
 from flask_wtf import FlaskForm
 from wtforms import StringField, PasswordField, EmailField, SelectField, BooleanField
 from wtforms.validators import InputRequired, Email, Length, EqualTo
-from models.models import User
-from flask_mail import Message, Mail
+from flask_mail import Message
 from itsdangerous import URLSafeTimedSerializer as Serializer
-from flask import current_app
 
 auth = Blueprint('auth', __name__, template_folder='../templates')
 
@@ -89,25 +88,44 @@ def login():
     form = LoginForm()
 
     if form.validate_on_submit():
-        email = form.email.data.lower().strip()
-        password = form.password.data
-        user = User.query.filter_by(email=email).first()
+        try:
+            email = form.email.data.lower().strip()
+            password = form.password.data
+            
+            current_app.logger.info(f"Login attempt for email: {email}")
+            user = User.query.filter_by(email=email).first()
 
-        if user and bcrypt.check_password_hash(user.password, password):
-            login_user(user, remember=form.remember_me.data)
-            
-            # Get the next page from URL parameters
-            next_page = request.args.get('next')
-            
-            # Validate next_page to prevent open redirect attacks
-            if not next_page or urlparse(next_page).netloc != '':
-                next_page = url_for('quiz.quiz_home')
-            
-            session.permanent = True
-            flash(f'Welcome back, {user.username}!', 'success')
-            return redirect(next_page)
-        else:
-            flash('Invalid email or password. Please try again.', 'danger')
+            if user:
+                current_app.logger.info(f"User found: {user.username}")
+                
+                # FIXED: Access bcrypt through current_app extensions
+                bcrypt = current_app.extensions.get('bcrypt')
+                
+                if bcrypt and bcrypt.check_password_hash(user.password, password):
+                    login_user(user, remember=form.remember_me.data)
+                    
+                    # Get the next page from URL parameters
+                    next_page = request.args.get('next')
+                    
+                    # Validate next_page to prevent open redirect attacks
+                    if not next_page or urlparse(next_page).netloc != '':
+                        next_page = url_for('quiz.quiz_home')
+                    
+                    session.permanent = True
+                    flash(f'Welcome back, {user.username}!', 'success')
+                    current_app.logger.info(f"Successful login for user: {user.username}")
+                    return redirect(next_page)
+                else:
+                    current_app.logger.warning(f"Invalid password for user: {user.username}")
+                    flash('Invalid email or password. Please try again.', 'danger')
+            else:
+                current_app.logger.warning(f"No user found with email: {email}")
+                flash('Invalid email or password. Please try again.', 'danger')
+                
+        except Exception as e:
+            current_app.logger.error(f"Login error: {str(e)}")
+            db.session.rollback()
+            flash('An error occurred during login. Please try again.', 'danger')
     
     # Render template with no-cache headers
     response = make_response(render_template('login.html', form=form))
@@ -119,38 +137,46 @@ def register():
     form = RegisterForm()
 
     if form.validate_on_submit():
-        username = form.username.data.strip()
-        email = form.email.data.lower().strip()
-        password = form.password.data
-        role = form.role.data
-
-        # Check if user already exists
-        existing_user = User.query.filter(
-            (User.email == email) | (User.username == username)
-        ).first()
-        
-        if existing_user:
-            if existing_user.email == email:
-                flash('Email address already registered. Please use a different email.', 'danger')
-            else:
-                flash('Username already taken. Please choose a different username.', 'danger')
-            response = make_response(render_template('register.html', form=form))
-            return add_no_cache_headers(response)
-
-        if role not in ['user', 'admin']:
-            flash('Invalid role selected', 'danger')
-            response = make_response(render_template('register.html', form=form))
-            return add_no_cache_headers(response)
-        
-        # Hash password and create new user
-        hashed_password = bcrypt.generate_password_hash(password).decode('utf-8')
-        new_user = User(username=username, email=email, password=hashed_password, role=role)
-        
         try:
+            username = form.username.data.strip()
+            email = form.email.data.lower().strip()
+            password = form.password.data
+            role = form.role.data
+
+            # Check if user already exists
+            existing_user = User.query.filter(
+                (User.email == email) | (User.username == username)
+            ).first()
+            
+            if existing_user:
+                if existing_user.email == email:
+                    flash('Email address already registered. Please use a different email.', 'danger')
+                else:
+                    flash('Username already taken. Please choose a different username.', 'danger')
+                response = make_response(render_template('register.html', form=form))
+                return add_no_cache_headers(response)
+
+            if role not in ['user', 'admin']:
+                flash('Invalid role selected', 'danger')
+                response = make_response(render_template('register.html', form=form))
+                return add_no_cache_headers(response)
+            
+            # FIXED: Access bcrypt through current_app extensions
+            bcrypt = current_app.extensions.get('bcrypt')
+            if not bcrypt:
+                flash('System error. Please try again later.', 'danger')
+                return redirect(url_for('auth.register'))
+                
+            # Hash password and create new user
+            hashed_password = bcrypt.generate_password_hash(password).decode('utf-8')
+            new_user = User(username=username, email=email, password=hashed_password, role=role)
+            
             db.session.add(new_user)
             db.session.commit()
             flash('Account created successfully! You can now log in.', 'success')
+            current_app.logger.info(f'New user registered: {username} ({email})')
             return redirect(url_for('auth.login'))
+            
         except Exception as e:
             db.session.rollback()
             flash('An error occurred while creating your account. Please try again.', 'danger')
@@ -176,12 +202,15 @@ def forgot_password():
                 token = user.get_reset_token()
                 reset_url = url_for('auth.reset_password', token=token, _external=True)
 
-                msg = Message(
-                    'QuizMaster - Password Reset Request',
-                    sender='noreply@quizmaster.com',
-                    recipients=[user.email]
-                )
-                msg.body = f'''Hello {user.username},
+                # FIXED: Access mail through current_app extensions
+                mail = current_app.extensions.get('mail')
+                if mail:
+                    msg = Message(
+                        'QuizMaster - Password Reset Request',
+                        sender='noreply@quizmaster.com',
+                        recipients=[user.email]
+                    )
+                    msg.body = f'''Hello {user.username},
 
 A password reset was requested for your QuizMaster account.
 
@@ -195,8 +224,8 @@ If you did not request this reset, please ignore this email.
 Best regards,
 The QuizMaster Team
 '''
-                mail.send(msg)
-                current_app.logger.info(f'Password reset email sent to {email}')
+                    mail.send(msg)
+                    current_app.logger.info(f'Password reset email sent to {email}')
                 
             except Exception as e:
                 current_app.logger.error(f'Failed to send reset email: {str(e)}')
@@ -220,6 +249,12 @@ def reset_password(token):
     
     if form.validate_on_submit():
         try:
+            # FIXED: Access bcrypt through current_app extensions
+            bcrypt = current_app.extensions.get('bcrypt')
+            if not bcrypt:
+                flash('System error. Please try again later.', 'danger')
+                return redirect(url_for('auth.forgot_password'))
+                
             hashed_password = bcrypt.generate_password_hash(form.password.data).decode('utf-8')
             user.password = hashed_password
             db.session.commit()
@@ -266,3 +301,14 @@ def logout():
     
     flash('You have been logged out successfully.', 'info')
     return response
+
+# Add this test route to check database connection
+@auth.route('/test-db')
+def test_db():
+    try:
+        users = User.query.all()
+        user_list = [f"{user.username} ({user.email}) - {user.role}" for user in users]
+        return f"<h2>Database working!</h2><p>Found {len(users)} users:</p><ul>" + "".join([f"<li>{user}</li>" for user in user_list]) + "</ul>"
+    except Exception as e:
+        current_app.logger.error(f"Database test error: {str(e)}")
+        return f"<h2>Database error:</h2><p>{str(e)}</p>", 500
