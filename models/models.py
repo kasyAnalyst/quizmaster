@@ -101,7 +101,7 @@ class Result(db.Model, UserMixin):
 
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)  # Foreign key to User
-    quiz_id = db.Column(db.Integer, db.ForeignKey('quiz.id'), nullable=False)  # Foreign key to Quiz
+    quiz_id = db.Column(db.Integer, db.ForeignKey('quiz.id'), nullable=True)  # Foreign key to Quiz
     score = db.Column(db.Integer, nullable=False)  # User's score in the quiz
     attempted_at = db.Column(db.DateTime, default=db.func.now())  # Timestamp when the quiz was attempted
     answers = db.Column(Text, nullable=True)  # Store answers as a string (JSON, comma-separated, etc.)
