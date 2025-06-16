@@ -4,8 +4,8 @@
   
   **Interactive Quiz System with Admin Controls & User Management**
   
-  [![Live Demo](https://img.shields.io/badge/🌐%20Live%20Demo-Visit%20Site-blue?style=for-the-badge)](https://your-app-url.vercel.app)
-  [![GitHub](https://img.shields.io/badge/GitHub-Repository-black?style=for-the-badge&logo=github)](https://github.com/kasyAnalyst/QuizMaster-)
+  [![Live Demo](https://img.shields.io/badge/🌐%20Live%20Demo-Visit%20Site-blue?style=for-the-badge)](https://quizmaster-kasy.vercel.app/)
+  [![GitHub](https://img.shields.io/badge/GitHub-Repository-black?style=for-the-badge&logo=github)](https://github.com/kasyAnalyst/quizmaster/)
   
 </div>
 
@@ -55,6 +55,7 @@ QuizMaster is a comprehensive, full-stack quiz management platform that provides
 - ![Flask](https://img.shields.io/badge/Flask-000000?style=flat&logo=flask&logoColor=white) **Flask** - Lightweight web framework
 - ![SQLAlchemy](https://img.shields.io/badge/SQLAlchemy-D71F00?style=flat&logo=sqlalchemy&logoColor=white) **SQLAlchemy** - Database ORM and management
 - ![SQLite](https://img.shields.io/badge/SQLite-003B57?style=flat&logo=sqlite&logoColor=white) **SQLite** - Embedded database system
+- ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-316192?style=flat&logo=postgresql&logoColor=white) **Neon PostgreSQL** - Cloud-native serverless PostgreSQL database
 
 ### Frontend Technologies
 - ![HTML5](https://img.shields.io/badge/HTML5-E34F26?style=flat&logo=html5&logoColor=white) **HTML5** - Semantic markup structure
@@ -81,7 +82,7 @@ QuizMaster is a comprehensive, full-stack quiz management platform that provides
 
 ## 🚀 Live Demo
 
-**🌐 [Visit QuizMaster Live](https://your-app-url.vercel.app)**
+**🌐 [Visit QuizMaster Live](https://quizmaster-kasy.vercel.app/)**
 
 ### Demo Credentials
 ```
@@ -136,7 +137,7 @@ QuizMaster/
 
 1. **Clone the Repository**
    ```bash
-   git clone https://github.com/yourusername/quizmaster.git
+   git clone https://github.com/kasyAnalyst/quizmaster.git
    cd quizmaster
    ```
 
@@ -163,7 +164,7 @@ QuizMaster/
    
    # Add configuration variables
    echo "SECRET_KEY=your-secret-key-here" >> .env
-   echo "DATABASE_URL=sqlite:///quiz.db" >> .env
+   echo "DATABASE_URL=sqlite:///online_quiz.db" >> .env
    echo "FLASK_ENV=development" >> .env
    ```
 
@@ -220,7 +221,7 @@ QuizMaster/
 | Variable | Description | Default | Required |
 |----------|-------------|---------|----------|
 | `SECRET_KEY` | Flask secret key for sessions | None | Yes |
-| `DATABASE_URL` | Database connection string | `sqlite:///quiz.db` | No |
+| `DATABASE_URL` | Database connection string | `sqlite:///online_quiz.db` | No |
 | `FLASK_ENV` | Flask environment mode | `development` | No |
 | `MAIL_SERVER` | SMTP server for emails | `smtp.gmail.com` | No |
 | `MAIL_PORT` | SMTP port number | `587` | No |
@@ -387,39 +388,36 @@ Contributions are welcome and appreciated! Here's how to get involved:
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-```
-MIT License
+Educational Practice Project License
 
-Copyright (c) 2025 [Your Name]
+Copyright (c) 2025 Prosper .N. Collins
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+This project is developed for educational and learning purposes. You are free to:
+- Use this code for learning and reference
+- Modify and adapt it for your own educational projects
+- Share it with others for educational purposes
+- Use it as a foundation for your own applications
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+This software is provided "as is" for educational purposes. While you're welcome 
+to use and learn from this code, please note that it's a practice project and 
+may not be suitable for production use without further development and testing.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-```
+## Acknowledgments
+- Built as a learning project to demonstrate Flask web development
+- Uses The Trivia API for educational quiz content
+- Deployed on Vercel with Neon PostgreSQL for learning cloud deployment
+
+Happy coding and learning! 🚀
 
 ---
 
 ## 👨‍💻 Author
 
 **[Your Name]**
-- 🌐 Portfolio: [yourportfolio.com](https://yourportfolio.com)
-- 💼 LinkedIn: [linkedin.com/in/yourprofile](https://linkedin.com/in/yourprofile)
-- 🐙 GitHub: [@yourusername](https://github.com/yourusername)
-- 📧 Email: your.email@example.com
+- 🌐 Portfolio: [myportfolio.com](https://github.com/kasyAnalyst/portfolio)
+- 💼 LinkedIn: [linkedin.com/in/prosper-n-collins](https://www.linkedin.com/in/prosper-n-collins-919b9a191/)
+- 🐙 GitHub: [@kasyanalyst](https://github.com/kasyAnalyst)
+- 📧 Email: kasyAnalyst@gmail.com
 
 ---
 
@@ -434,22 +432,11 @@ SOFTWARE.
 
 ---
 
-## 📊 Project Statistics
-
-![GitHub repo size](https://img.shields.io/github/repo-size/yourusername/quizmaster)
-![GitHub code size](https://img.shields.io/github/languages/code-size/yourusername/quizmaster)
-![GitHub last commit](https://img.shields.io/github/last-commit/yourusername/quizmaster)
-![GitHub issues](https://img.shields.io/github/issues/yourusername/quizmaster)
-![GitHub stars](https://img.shields.io/github/stars/yourusername/quizmaster?style=social)
-![GitHub forks](https://img.shields.io/github/forks/yourusername/quizmaster?style=social)
-
----
-
 <div align="center">
   
   **⭐ Star this repository if you found it helpful! ⭐**
   
-  Made with ❤️ and ☕ by [Your Name](https://github.com/yourusername)
+  Made with ❤️ and ☕ by [Prosper .N. Collins](https://github.com/kasyAnalyst)
   
   *Building the future of interactive learning, one quiz at a time.*
   
