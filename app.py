@@ -53,3 +53,10 @@ def create_app():
     app.register_blueprint(main)  # Register the main blueprint
 
     return app
+
+
+
+
+
+
+
