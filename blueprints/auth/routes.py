@@ -1,314 +1,414 @@
-from flask import Blueprint, render_template, redirect, url_for, flash, session, request, make_response, current_app
-from flask_login import login_user, logout_user, login_required, current_user
-from functools import wraps
-from urllib.parse import urlparse
-# FIXED: Import db from models, not from app to avoid circular import
-from models.models import db, User
-from flask_wtf import FlaskForm
-from wtforms import StringField, PasswordField, EmailField, SelectField, BooleanField
-from wtforms.validators import InputRequired, Email, Length, EqualTo
-from flask_mail import Message
-from itsdangerous import URLSafeTimedSerializer as Serializer
+from flask import Blueprint, json, render_template, request, redirect, url_for, flash, session
+from app import db
+from models.models import Quiz, Question, Result
+from flask_login import login_required, current_user
+import requests
+import random
+from datetime import datetime
 
-auth = Blueprint('auth', __name__, template_folder='../templates')
+quiz = Blueprint('quiz', __name__, template_folder='templates')
 
-# Security decorator to prevent logged-in users from accessing auth pages
-def anonymous_required(f):
-    """Decorator to redirect logged-in users away from auth pages"""
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if current_user.is_authenticated:
-            flash('You are already logged in.', 'info')
-            return redirect(url_for('quiz.quiz_home'))
-        return f(*args, **kwargs)
-    return decorated_function
+def get_option_text(question, option_letter):
+    """Get the full text for an option letter"""
+    if not option_letter:
+        return "Not answered"
+    
+    # Handle API questions (dict) vs DB questions (object)
+    if isinstance(question, dict):
+        option_map = {
+            'a': question.get('option_a', ''),
+            'b': question.get('option_b', ''),
+            'c': question.get('option_c', ''),
+            'd': question.get('option_d', ''),
+        }
+    else:
+        option_map = {
+            'a': question.option_a,
+            'b': question.option_b,
+            'c': question.option_c,
+            'd': question.option_d,
+        }
+    
+    return option_map.get(option_letter.lower(), "Unknown option")
 
-def add_no_cache_headers(response):
-    """Add headers to prevent page caching - stops back button access"""
-    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0'
-    response.headers['Pragma'] = 'no-cache'
-    response.headers['Expires'] = '-1'
-    response.headers['Last-Modified'] = '0'
-    return response
+@quiz.route('/quiz_home')
+def quiz_home():
+    return render_template('quiz_home.html')
 
-# Define the Register Form
-class RegisterForm(FlaskForm):
-    username = StringField('Username', validators=[
-        InputRequired(message='Username is required'), 
-        Length(min=4, max=100, message='Username must be between 4 and 100 characters')
-    ])
-    email = EmailField('Email address', validators=[
-        InputRequired(message='Email is required'), 
-        Email(message='Invalid email address')
-    ])
-    password = PasswordField('Password', validators=[
-        InputRequired(message='Password is required'), 
-        Length(min=6, max=100, message='Password must be at least 6 characters')
-    ])
-    confirm_password = PasswordField('Confirm Password', validators=[
-        InputRequired(message='Please confirm your password'), 
-        EqualTo('password', message='Passwords must match')
-    ])
-    role = SelectField('Role', choices=[('user', 'User'), ('admin', 'Admin')], validators=[
-        InputRequired(message='Please select a role')
-    ])
+@quiz.route('/list_quizzes', methods=['GET'])
+def list_quizzes():
+    quiz_source = request.args.get('quiz_source', 'admin')
 
-# Define the Login Form
-class LoginForm(FlaskForm):
-    email = EmailField('Email address', validators=[
-        InputRequired(message='Email is required'), 
-        Email(message='Invalid email address')
-    ])
-    password = PasswordField('Password', validators=[
-        InputRequired(message='Password is required')
-    ])
-    remember_me = BooleanField('Remember Me')
-
-# Forgot Password Form
-class ForgotPasswordForm(FlaskForm):
-    email = EmailField('Email address', validators=[
-        InputRequired(message='Email is required'), 
-        Email(message='Invalid email address')
-    ])
-
-# Reset Password Form
-class ResetPasswordForm(FlaskForm):
-    password = PasswordField('New Password', validators=[
-        InputRequired(message='Password is required'), 
-        Length(min=6, max=100, message='Password must be at least 6 characters')
-    ])
-    confirm_password = PasswordField('Confirm Password', validators=[
-        InputRequired(message='Please confirm your password'), 
-        EqualTo('password', message='Passwords must match')
-    ])
-
-@auth.route('/login', methods=['GET', 'POST'])
-@anonymous_required
-def login():
-    form = LoginForm()
-
-    if form.validate_on_submit():
+    if quiz_source == 'admin':
+        quizzes = Quiz.query.all()
+    elif quiz_source == 'api':
         try:
-            email = form.email.data.lower().strip()
-            password = form.password.data
-            
-            current_app.logger.info(f"Login attempt for email: {email}")
-            user = User.query.filter_by(email=email).first()
-
-            if user:
-                current_app.logger.info(f"User found: {user.username}")
-                
-                # FIXED: Access bcrypt through current_app extensions
-                bcrypt = current_app.extensions.get('bcrypt')
-                
-                if bcrypt and bcrypt.check_password_hash(user.password, password):
-                    login_user(user, remember=form.remember_me.data)
-                    
-                    # Get the next page from URL parameters
-                    next_page = request.args.get('next')
-                    
-                    # Validate next_page to prevent open redirect attacks
-                    if not next_page or urlparse(next_page).netloc != '':
-                        next_page = url_for('quiz.quiz_home')
-                    
-                    session.permanent = True
-                    flash(f'Welcome back, {user.username}!', 'success')
-                    current_app.logger.info(f"Successful login for user: {user.username}")
-                    return redirect(next_page)
-                else:
-                    current_app.logger.warning(f"Invalid password for user: {user.username}")
-                    flash('Invalid email or password. Please try again.', 'danger')
-            else:
-                current_app.logger.warning(f"No user found with email: {email}")
-                flash('Invalid email or password. Please try again.', 'danger')
-                
+            quiz_options = [
+                {
+                    'id': 'api_quiz_general',
+                    'title': 'General Knowledge Quiz',
+                    'category': 'Mixed Topics',
+                    'description': '10 random questions from all categories'
+                },
+                {
+                    'id': 'api_quiz_science',
+                    'title': 'Science & Nature Quiz', 
+                    'category': 'Science',
+                    'description': '10 science and nature questions'
+                },
+                {
+                    'id': 'api_quiz_history',
+                    'title': 'History Quiz',
+                    'category': 'History', 
+                    'description': '10 historical questions'
+                },
+                {
+                    'id': 'api_quiz_geography',
+                    'title': 'Geography Quiz',
+                    'category': 'Geography',
+                    'description': '10 geography questions'
+                },
+                {
+                    'id': 'api_quiz_sports',
+                    'title': 'Sports & Leisure Quiz',
+                    'category': 'Sports',
+                    'description': '10 sports and leisure questions'
+                },
+                {
+                    'id': 'api_quiz_easy',
+                    'title': 'Easy Trivia Quiz',
+                    'category': 'Easy Level',
+                    'description': '10 easy difficulty questions'
+                },
+                {
+                    'id': 'api_quiz_hard',
+                    'title': 'Challenge Quiz',
+                    'category': 'Hard Level', 
+                    'description': '10 hard difficulty questions'
+                }
+            ]
+            quizzes = quiz_options
         except Exception as e:
-            current_app.logger.error(f"Login error: {str(e)}")
-            db.session.rollback()
-            flash('An error occurred during login. Please try again.', 'danger')
-    
-    # Render template with no-cache headers
-    response = make_response(render_template('login.html', form=form))
-    return add_no_cache_headers(response)
+            quizzes = []
+            flash(f"Error creating API quiz options: {str(e)}", 'danger')
 
-@auth.route('/register', methods=['GET', 'POST'])
-@anonymous_required
-def register():
-    form = RegisterForm()
+    return render_template('quiz_home.html', quizzes=quizzes, quiz_source=quiz_source)
 
-    if form.validate_on_submit():
-        try:
-            username = form.username.data.strip()
-            email = form.email.data.lower().strip()
-            password = form.password.data
-            role = form.role.data
-
-            # Check if user already exists
-            existing_user = User.query.filter(
-                (User.email == email) | (User.username == username)
-            ).first()
-            
-            if existing_user:
-                if existing_user.email == email:
-                    flash('Email address already registered. Please use a different email.', 'danger')
-                else:
-                    flash('Username already taken. Please choose a different username.', 'danger')
-                response = make_response(render_template('register.html', form=form))
-                return add_no_cache_headers(response)
-
-            if role not in ['user', 'admin']:
-                flash('Invalid role selected', 'danger')
-                response = make_response(render_template('register.html', form=form))
-                return add_no_cache_headers(response)
-            
-            # FIXED: Access bcrypt through current_app extensions
-            bcrypt = current_app.extensions.get('bcrypt')
-            if not bcrypt:
-                flash('System error. Please try again later.', 'danger')
-                return redirect(url_for('auth.register'))
-                
-            # Hash password and create new user
-            hashed_password = bcrypt.generate_password_hash(password).decode('utf-8')
-            new_user = User(username=username, email=email, password=hashed_password, role=role)
-            
-            db.session.add(new_user)
-            db.session.commit()
-            flash('Account created successfully! You can now log in.', 'success')
-            current_app.logger.info(f'New user registered: {username} ({email})')
-            return redirect(url_for('auth.login'))
-            
-        except Exception as e:
-            db.session.rollback()
-            flash('An error occurred while creating your account. Please try again.', 'danger')
-            current_app.logger.error(f'Registration error: {str(e)}')
-
-    # Render template with no-cache headers
-    response = make_response(render_template('register.html', form=form))
-    return add_no_cache_headers(response)
-
-@auth.route('/forgot_password', methods=['GET', 'POST'])
-@anonymous_required
-def forgot_password():
-    form = ForgotPasswordForm()
-    
-    if form.validate_on_submit():
-        email = form.email.data.lower().strip()
-        user = User.query.filter_by(email=email).first()
-        
-        flash('If an account with that email exists, a password reset link has been sent.', 'info')
-        
-        if user:
-            try:
-                token = user.get_reset_token()
-                reset_url = url_for('auth.reset_password', token=token, _external=True)
-
-                # FIXED: Access mail through current_app extensions
-                mail = current_app.extensions.get('mail')
-                if mail:
-                    msg = Message(
-                        'QuizMaster - Password Reset Request',
-                        sender='noreply@quizmaster.com',
-                        recipients=[user.email]
-                    )
-                    msg.body = f'''Hello {user.username},
-
-A password reset was requested for your QuizMaster account.
-
-Click the link below to reset your password:
-{reset_url}
-
-This link will expire in 1 hour for security reasons.
-
-If you did not request this reset, please ignore this email.
-
-Best regards,
-The QuizMaster Team
-'''
-                    mail.send(msg)
-                    current_app.logger.info(f'Password reset email sent to {email}')
-                
-            except Exception as e:
-                current_app.logger.error(f'Failed to send reset email: {str(e)}')
-        
-        return redirect(url_for('auth.login'))
-
-    # Render template with no-cache headers
-    response = make_response(render_template('forgot_password.html', form=form))
-    return add_no_cache_headers(response)
-
-@auth.route('/reset_password/<token>', methods=['GET', 'POST'])
-@anonymous_required
-def reset_password(token):
-    user = User.verify_reset_token(token)
-    
-    if user is None:
-        flash('Invalid or expired reset link. Please request a new password reset.', 'danger')
-        return redirect(url_for('auth.forgot_password'))
-
-    form = ResetPasswordForm()
-    
-    if form.validate_on_submit():
-        try:
-            # FIXED: Access bcrypt through current_app extensions
-            bcrypt = current_app.extensions.get('bcrypt')
-            if not bcrypt:
-                flash('System error. Please try again later.', 'danger')
-                return redirect(url_for('auth.forgot_password'))
-                
-            hashed_password = bcrypt.generate_password_hash(form.password.data).decode('utf-8')
-            user.password = hashed_password
-            db.session.commit()
-            
-            flash('Your password has been updated successfully! You can now log in.', 'success')
-            current_app.logger.info(f'Password reset successful for user: {user.email}')
-            return redirect(url_for('auth.login'))
-            
-        except Exception as e:
-            db.session.rollback()
-            flash('An error occurred while updating your password. Please try again.', 'danger')
-            current_app.logger.error(f'Password reset error: {str(e)}')
-
-    # Render template with no-cache headers
-    response = make_response(render_template('reset_password.html', form=form, token=token))
-    return add_no_cache_headers(response)
-
-@auth.route('/logout')
+@quiz.route('/take_quiz/<quiz_id>', methods=['GET', 'POST'])
 @login_required
-def logout():
-    # Log the logout action
-    if current_user.is_authenticated:
-        username = current_user.username
-        current_app.logger.info(f'User {username} logged out')
+def take_quiz(quiz_id):
+    quiz_source = request.args.get('source', 'db')
     
-    # Clear the user session
-    logout_user()
-    
-    # Clear all session data
-    session.clear()
-    
-    # Create response that redirects to home page
-    response = make_response(redirect(url_for('main.home')))
-    
-    # Strong no-cache headers to prevent back button access
-    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0, private'
-    response.headers['Pragma'] = 'no-cache'
-    response.headers['Expires'] = '-1'
-    response.headers['Last-Modified'] = '0'
-    
-    # Clear authentication cookies completely
-    response.set_cookie('session', '', expires=0, path='/')
-    response.set_cookie('remember_token', '', expires=0, path='/')
-    
-    flash('You have been logged out successfully.', 'info')
-    return response
+    if quiz_source == 'api':
+        try:
+            # Map quiz_id to API parameters
+            quiz_params_map = {
+                'api_quiz_general': '',
+                'api_quiz_science': '&categories=science',
+                'api_quiz_history': '&categories=history',
+                'api_quiz_geography': '&categories=geography',
+                'api_quiz_sports': '&categories=sport_and_leisure',
+                'api_quiz_easy': '&difficulties=easy',
+                'api_quiz_hard': '&difficulties=hard'
+            }
+            
+            api_params = quiz_params_map.get(quiz_id, '')
+            api_url = f"https://the-trivia-api.com/v2/questions?limit=10{api_params}"
+            
+            response = requests.get(api_url)
+            
+            if response.status_code == 200:
+                api_questions = response.json()
+                
+                questions = []
+                for i, q in enumerate(api_questions):
+                    all_answers = q['incorrectAnswers'] + [q['correctAnswer']]
+                    random.shuffle(all_answers)
+                    
+                    while len(all_answers) < 4:
+                        all_answers.append("N/A")
+                    
+                    formatted_question = {
+                        'question_text': q['question']['text'],
+                        'option_a': all_answers[0],
+                        'option_b': all_answers[1], 
+                        'option_c': all_answers[2],
+                        'option_d': all_answers[3],
+                        'correct_answer': q['correctAnswer'],
+                        'category': q['category'],
+                        'difficulty': q['difficulty'],
+                        'api_id': q['id']
+                    }
+                    
+                    for option, text in [('a', all_answers[0]), ('b', all_answers[1]), 
+                                       ('c', all_answers[2]), ('d', all_answers[3])]:
+                        if text == q['correctAnswer']:
+                            formatted_question['correct_option'] = option
+                            break
+                    
+                    questions.append(formatted_question)
+                
+                quiz_titles = {
+                    'api_quiz_general': 'General Knowledge Quiz',
+                    'api_quiz_science': 'Science & Nature Quiz',
+                    'api_quiz_history': 'History Quiz',
+                    'api_quiz_geography': 'Geography Quiz',
+                    'api_quiz_sports': 'Sports & Leisure Quiz',
+                    'api_quiz_easy': 'Easy Trivia Quiz',
+                    'api_quiz_hard': 'Challenge Quiz'
+                }
+                
+                quiz_categories = {
+                    'api_quiz_general': 'Mixed Topics',
+                    'api_quiz_science': 'Science & Nature',
+                    'api_quiz_history': 'History',
+                    'api_quiz_geography': 'Geography', 
+                    'api_quiz_sports': 'Sports & Leisure',
+                    'api_quiz_easy': 'Easy Level',
+                    'api_quiz_hard': 'Hard Level'
+                }
+                
+                quiz = {
+                    'id': quiz_id,
+                    'title': quiz_titles.get(quiz_id, 'Trivia Quiz'),
+                    'category': quiz_categories.get(quiz_id, 'Mixed Topics')
+                }
+                
+            else:
+                flash("Error fetching quiz from API", 'danger')
+                return redirect(url_for('quiz.quiz_home'))
+                
+        except Exception as e:
+            flash(f"Error connecting to API: {str(e)}", 'danger')
+            return redirect(url_for('quiz.quiz_home'))
+    else:
+        try:
+            quiz_id_int = int(quiz_id)
+            quiz = Quiz.query.get_or_404(quiz_id_int)
+            questions = Question.query.filter_by(quiz_id=quiz.id).all()
+        except ValueError:
+            flash("Invalid quiz ID", 'danger')
+            return redirect(url_for('quiz.quiz_home'))
 
-# Add this test route to check database connection
-@auth.route('/test-db')
-def test_db():
-    try:
-        users = User.query.all()
-        user_list = [f"{user.username} ({user.email}) - {user.role}" for user in users]
-        return f"<h2>Database working!</h2><p>Found {len(users)} users:</p><ul>" + "".join([f"<li>{user}</li>" for user in user_list]) + "</ul>"
-    except Exception as e:
-        current_app.logger.error(f"Database test error: {str(e)}")
-        return f"<h2>Database error:</h2><p>{str(e)}</p>", 500
+    # Handle form submission
+    if request.method == 'POST':
+        score = 0
+        user_answers = []
+        
+        time_taken = int(request.form.get('time_taken', 0))
+        start_time = request.form.get('start_time')
+        
+        for i, question in enumerate(questions):
+            user_answer = request.form.get(f'answers_{i + 1}')
+            if not user_answer:
+                user_answer = ''
+            user_answers.append(user_answer)
+            
+            if quiz_source == 'api':
+                correct_option = question.get('correct_option', '')
+            else:
+                correct_option = question.correct_option
+            
+            if user_answer == correct_option:
+                score += 1
+
+        # Store quiz data in session for API quizzes
+        if quiz_source == 'api':
+            # Clean up old session data first
+            old_keys = [k for k in session.keys() if k.startswith('api_quiz_data_')]
+            for key in old_keys:
+                session.pop(key, None)
+            
+            # Store minimal data in session
+            session[f'api_quiz_data_{current_user.id}'] = {
+                'quiz_title': quiz['title'],
+                'quiz_category': quiz['category'], 
+                'total_questions': len(questions),
+                'quiz_source': quiz_source
+            }
+            
+            # ENHANCED: Store complete question data in the answers JSON
+            enhanced_answers = []
+            for i, question in enumerate(questions):
+                user_answer = user_answers[i] if i < len(user_answers) else ''
+                enhanced_answers.append({
+                    'user_answer': user_answer,
+                    'correct_answer': question.get('correct_option', 'a'),
+                    'question_text': question.get('question_text', f'Question {i+1}'),
+                    'options': {
+                        'a': question.get('option_a', 'Option A'),
+                        'b': question.get('option_b', 'Option B'), 
+                        'c': question.get('option_c', 'Option C'),
+                        'd': question.get('option_d', 'Option D')
+                    }
+                })
+            
+            # Use enhanced data instead of simple user_answers
+            user_answers_json = json.dumps(enhanced_answers)
+            
+            result = Result(
+                user_id=current_user.id,
+                quiz_id=0,  # Use 0 for API quizzes
+                score=score,
+                answers=user_answers_json,  # Now contains full question data
+                time_taken=time_taken,
+                started_at=datetime.fromisoformat(start_time) if start_time else datetime.now(),
+                completed_at=datetime.now()
+            )
+        else:
+            # For database quizzes, use simple user_answers
+            user_answers_json = json.dumps(user_answers)
+            result = Result(
+                user_id=current_user.id,
+                quiz_id=quiz.id,
+                score=score,
+                answers=user_answers_json,
+                time_taken=time_taken,
+                started_at=datetime.fromisoformat(start_time) if start_time else datetime.now(),
+                completed_at=datetime.now()
+            )
+        
+        db.session.add(result)
+        db.session.commit()
+
+        flash(f'Quiz submitted successfully! Your score is: {score}', 'success')
+        return redirect(url_for('quiz.quiz_result', result_id=result.id))
+
+    quiz_duration = 10
+    total_questions = len(questions)
+    
+    return render_template('take_quiz.html', 
+                         quiz=quiz, 
+                         questions=questions, 
+                         quiz_source=quiz_source,
+                         quiz_duration=quiz_duration,
+                         total_questions=total_questions)
+
+@quiz.route('/quiz_result/<int:result_id>', methods=['GET'])
+@login_required
+def quiz_result(result_id):
+    result = Result.query.get_or_404(result_id)
+    
+    # Check if this is an API quiz result
+    if result.quiz_id == 0:  # API quiz
+        # Get quiz data from session (for quiz info)
+        api_quiz_data = session.get(f'api_quiz_data_{current_user.id}')
+        
+        if api_quiz_data:
+            quiz = {
+                'id': 'api_quiz',
+                'title': api_quiz_data['quiz_title'],
+                'category': api_quiz_data['quiz_category']
+            }
+            quiz_source = api_quiz_data['quiz_source']
+        else:
+            # Fallback for quiz info only
+            quiz = {
+                'id': 'api_quiz',
+                'title': 'API Trivia Quiz',
+                'category': 'Mixed Topics'
+            }
+            quiz_source = 'api'
+        
+        # Load answers (which now contain full question data)
+        user_answers = json.loads(result.answers)
+        
+        # Check if we have enhanced answer format
+        if user_answers and isinstance(user_answers[0], dict) and 'question_text' in user_answers[0]:
+            # NEW FORMAT: Full question data stored in database
+            questions = []
+            failed_answers = []
+            correct_count = 0
+            
+            for i, answer_data in enumerate(user_answers):
+                # Reconstruct question object
+                question = {
+                    'question_text': answer_data['question_text'],
+                    'option_a': answer_data['options']['a'],
+                    'option_b': answer_data['options']['b'],
+                    'option_c': answer_data['options']['c'],
+                    'option_d': answer_data['options']['d'],
+                    'correct_option': answer_data['correct_answer']
+                }
+                questions.append(question)
+                
+                user_answer = answer_data['user_answer']
+                correct_answer = answer_data['correct_answer']
+                
+                if user_answer != correct_answer:
+                    question_text = answer_data['question_text']
+                    user_answer_text = answer_data['options'].get(user_answer, 'Not answered') if user_answer else 'Not answered'
+                    correct_answer_text = answer_data['options'].get(correct_answer, 'Unknown')
+                    
+                    failed_answers.append((
+                        question_text,
+                        user_answer,
+                        user_answer_text,
+                        correct_answer,
+                        correct_answer_text
+                    ))
+                else:
+                    correct_count += 1
+        else:
+            # OLD FORMAT: Fallback to dummy questions
+            flash('Question details unavailable. Showing basic score only.', 'warning')
+            questions = [{'question_text': f'Question {i+1}'} for i in range(len(user_answers))]
+            failed_answers = []
+            correct_count = result.score
+            
+    else:  # Database quiz - existing logic
+        quiz = Quiz.query.get(result.quiz_id)
+        questions = Question.query.filter_by(quiz_id=quiz.id).all()
+        quiz_source = 'db'
+        
+        # Existing logic for database quizzes
+        user_answers = json.loads(result.answers)
+        failed_answers = []
+        correct_count = 0
+        
+        for i, question in enumerate(questions):
+            user_answer = user_answers[i] if i < len(user_answers) else ''
+            correct_answer = question.correct_option
+
+            if user_answer != correct_answer:
+                user_answer_text = get_option_text(question, user_answer)
+                correct_answer_text = get_option_text(question, correct_answer)
+                question_text = question.question_text
+                
+                failed_answers.append((
+                    question_text,
+                    user_answer,
+                    user_answer_text,
+                    correct_answer,
+                    correct_answer_text
+                ))
+            else:
+                correct_count += 1
+
+    # Calculate metrics
+    total_questions = len(questions)
+    incorrect_count = total_questions - correct_count
+    percentage = (result.score / total_questions) * 100 if total_questions > 0 else 0
+    
+    if hasattr(result, 'time_taken') and result.time_taken:
+        minutes = result.time_taken // 60
+        seconds = result.time_taken % 60
+        time_formatted = f"{minutes}m {seconds}s"
+    else:
+        time_formatted = "N/A"
+
+    chart_data = {
+        'correct': correct_count,
+        'incorrect': incorrect_count,
+        'percentage': round(percentage, 1),
+        'time_taken': time_formatted
+    }
+
+    return render_template('quiz_result.html', 
+                         quiz=quiz, 
+                         questions=questions, 
+                         score=result.score, 
+                         failed_answers=failed_answers,
+                         chart_data=chart_data,
+                         total_questions=total_questions,
+                         result=result)
