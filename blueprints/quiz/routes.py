@@ -295,7 +295,7 @@ def take_quiz(quiz_id):
                         
                         result = Result(
                             user_id=current_user.id,
-                            quiz_id=0,  # Use 0 for API quizzes
+                            quiz_id=None,
                             score=score,
                             answers=user_answers_json,
                             time_taken=time_taken,
@@ -384,7 +384,7 @@ def quiz_result(result_id):
         result = Result.query.get_or_404(result_id)
         
         # Check if this is an API quiz result
-        if result.quiz_id == 0:  # API quiz
+        if result.quiz_id is None:  
             # Get quiz data from session (for quiz info)
             api_quiz_data = session.get(f'api_quiz_data_{current_user.id}')
             
